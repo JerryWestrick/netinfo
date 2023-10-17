@@ -1,0 +1,89 @@
+{
+  "sshd": {
+    "user": "Unknown",
+    "listen": [["tcp6","22"],["tcp4","22"]],
+    "description": "OpenSSH server component, providing secure encrypted communications between two untrusted hosts over an insecure network.",
+    "documentation_link": "https://www.openssh.com/"
+  },
+  "NetworkManager": {
+    "user": "Unknown",
+    "listen": [],
+    "established": {"lport": ["68"],"rport": ["67"]},
+    "description": "Utility to manage network connections, aiming for Network Connectivity which \"Just Works\".",
+    "documentation_link": "https://wiki.gnome.org/Projects/NetworkManager"
+  },
+  "chrome": {
+    "username": "jerry",
+    "listen": [],
+    "established": {"rport": ["443","80","5228","5229","5230"]
+    },
+    "description": "Google Chrome, a cross-platform web browser developed by Google.",
+    "documentation_link": "https://www.google.com/chrome/"
+  },
+  "cupsd": {
+    "listen": [["tcp4","631"],["tcp6","631"]],
+    "established": {},
+    "description": "Common UNIX Printing System (CUPS) scheduler which handles printing jobs.",
+    "documentation_link": "https://www.cups.org/"
+  },
+  "postgres": {
+    "username": "postgres",
+    "listen": [["tcp4","5432"],["tcp6","5432"]],
+    "established": {"rport": ["5432", "53903"]},
+    "description": "Powerful, open source object-relational database system.",
+    "documentation_link": "https://www.postgresql.org/"
+  },
+  "systemd-resolve": {
+    "listen": [["tcp4","53"]],
+    "established": {},
+    "description": "System service that provides network name resolution to local applications.",
+    "documentation_link": "https://www.freedesktop.org/software/systemd/man/systemd-resolved.service.html"
+  },
+  "thunderbird": {
+    "listen": [],
+    "established": {"rport": ["993"]},
+    "description": "Free email application that\u2019s easy to set up and customize.",
+    "documentation_link": "https://www.thunderbird.net/"
+  },
+  "xrdp-sesman": {
+    "listen": [["tcp6","3350"]],
+    "established": {},
+    "description": "Session manager component for XRDP, an open source remote desktop protocol server.",
+    "documentation_link": "http://xrdp.org/"
+  },
+  "xrdp": {
+    "listen": [["tcpall","3389"]],
+    "established": {},
+    "description": "Open source remote desktop protocol (RDP) server.",
+    "documentation_link": "http://xrdp.org/"
+  },
+  "gvfsd-smb": {
+    "username": "jerry",
+    "listen": [],
+    "established": {"rport": ["445","139"]},
+    "description": "GNOME Virtual File System daemon for SMB/CIFS file sharing protocol, used for accessing Windows file shares.",
+    "documentation_link": "https://wiki.gnome.org/Projects/gvfs"
+  },
+  "whatsdesk": {
+    "username": "jerry",
+    "listen": [],
+    "established": {"rport": ["443"]},
+    "description": "WhatsDesk is a desktop client for WhatsApp. It allows users to access and use WhatsApp functionalities on their computers.",
+    "documentation_link": "https://github.com/mawie81/whatsdesktop"
+  },
+  "goa-daemon": {
+    "username": "jerry",
+    "listen": [],
+    "established": {"rport": ["443"]},
+    "description": "GOA Daemon (goa-daemon) is part of GNOME Online Accounts (GOA) - a centralized service for integrating online accounts with the GNOME desktop environment.",
+    "documentation_link": "https://wiki.gnome.org/Projects/GnomeOnlineAccounts"
+  },
+  "jetbrains-toolb": {
+    "username": "jerry",
+    "listen": [["tcp6", "52829"]],
+    "established": {"lport": ["36174"], "rport": ["63342"]},
+    "description": "JetBrains Toolbox is an application developed by JetBrains that manages and updates all JetBrains developer tools. It offers a centralized way to handle multiple JetBrains IDEs and utilities.",
+    "documentation_link": "https://www.jetbrains.com/toolbox-app/"
+  }
+
+}
