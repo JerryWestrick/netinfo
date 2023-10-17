@@ -15,3 +15,6 @@ The idea is to watch you network in real time and match the current network patt
     **Note:** that this is easily done by setting up a chatGPT session to which you copy the undefined program section, and ask chatGPT to update the program_info.json
 2. Create a realtime version that constantly watches for unknown network processing.
 3. Investigate what similar static program definitions exists.
+4. Implement version using osquery:
+   - Allow for os independence (MACOS, WINDOWS, LINUX)
+   - Allow for a much better structured interface to os than executing unix mini commands and parsing the output.
