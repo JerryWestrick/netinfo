@@ -1,307 +1,203 @@
-import argparse
 import json
 import os
-import pwd
-import re
-import socket
 import subprocess
-import psutil
-from colorama import Fore, Back, Style, init
+from docopt import docopt
+import socket
+from colored import fore, back, style
+
+query = ''' 
+SELECT 
+    p.pid,
+    p.name AS program_name,
+    p.uid,
+    p.gid,
+    u.username,
+    os.local_address,
+    os.local_port,
+    s.name AS local_service,
+    os.remote_address,
+    os.remote_port,
+    sr.name AS remote_service,
+    os.state,
+    CASE os.protocol
+        WHEN 1 THEN 'icmp'
+        WHEN 6 THEN 'tcp'
+        WHEN 17 THEN 'udp'
+        ELSE 'unknown'
+    END AS protocol
+FROM processes p
+JOIN process_open_sockets os ON p.pid = os.pid
+LEFT JOIN users u ON p.uid = u.uid
+LEFT JOIN etc_services s ON os.local_port = s.port AND (CASE os.protocol WHEN 6 THEN 'tcp' WHEN 17 THEN 'udp' ELSE 'unknown' END) = s.protocol
+LEFT JOIN etc_services sr ON os.remote_port = sr.port AND (CASE os.protocol WHEN 6 THEN 'tcp' WHEN 17 THEN 'udp' ELSE 'unknown' END) = sr.protocol
+WHERE os.state = 'LISTEN' OR os.state = 'ESTABLISHED'
+ORDER BY p.pid, os.state Desc;
+'''
 
 
-
-program_info = {}
-# Load program_info from JSON file
-with open("program_info.json", "r") as file:
-    program_info = json.load(file)
-
-init()
+def fetch_network_info():
+    # Using osquery to get the list of all programs with established and/or listening ports
+    cmd = ['osqueryi', '--json', query]
+    result = subprocess.check_output(cmd)
+    return json.loads(result)
 
 
-def get_host_name(ip):
-    try:
-        return socket.gethostbyaddr(ip)[0]
-    except socket.herror:
-        return ip
+no_info = {"user": "Unknown",
+           "listen": [],
+           "established": {},
+           "description": "No Information Available",
+           "documentation_link": "https://github.com/JerryWestrick/netinfo"
+           }
 
 
-def get_port_status(port):
-    if port == 'None':
-        return 'None'
-    elif port == 'Unusual':
-        return 'Unusual'
-    elif port.isdigit():
-        return 'Normal'
-    else:
-        return 'Unknown'
+def compare_output(expected_program_info, network_data):
+    output = []
+    last_program = ''
+    expected_info = None
+    rports = []
+    lports = []
+    listen = []
+    pl = []
+    behavior = 'Normal'
 
+    for entry in network_data:
+        program_name = entry['program_name']
 
-def get_protocol_name(port):
-    try:
-        # Get the protocol name for the given port number
-        protocol_name = socket.getservbyport(port)
-        return protocol_name
-    except (socket.error, socket.herror, socket.gaierror, socket.timeout):
-        return "Unknown"
+        if last_program != program_name:  # Program Break
+            if last_program != '':  # Write last program
+                output.append(pl)
+                pl = []
 
+            last_program = program_name  # This Program is now last
 
-def to_int(s):
-    try:
-        v = int(s)
-        return v
-    except ValueError:
-        return 0
-
-
-def get_network_info():
-    # Get program connections
-    special_hosts = {'0.0.0.0': 'all IP4',
-                     '*': 'all IP',
-                     '[::]': 'all IP6',
-                     '[::ffff:127.0.0.1]': 'IP6 localhost'
-                     }
-
-    programs = {}
-    connections = []
-    try:
-        output = subprocess.check_output(['ss', '-tupenO', '--tcp', 'state', 'established', 'state', 'listening'])
-        lines = output.decode().split('\n')[1:-1]
-        for line in lines:
-
-            parts = line.split()
-            protocol = parts[0]
-            state = parts[1]
-            laddr = parts[4]
-            raddr = parts[5]
-
-            version = 'all'
-            name = ''
-            uid = ''
-            pid = ''
-            username = 'Unknown'
-
-            if laddr[0] == '[':
-                version = '6'
-            elif laddr[0].isdigit():
-                version = '4'
-
-            for p in parts[6:]:
-                if p == 'v6only:1':
-                    version = '6'
-                elif p.startswith('uid:'):
-                    uid = p[4:]
-                    try:
-                        # Retrieve the username associated with the UID
-                        user_info = pwd.getpwuid(int(uid))
-                        username = user_info.pw_name
-                    except KeyError:
-                        pass
-                elif p.startswith('users:'):
-                    # Use regular expressions to extract program names and PIDs
-                    matches = re.findall(r'\(\"([^\"]+)\",pid=(\d+)', p)
-
-                    # Extracted data
-                    program_names = [match[0] for match in matches]
-                    pids = [int(match[1]) for match in matches]
-                    # print("=========================================")
-                    # print("Program Names:", program_names)
-                    # print("PIDs:", pids)
-
-            pid = pids[0]
-            protocol += version
-
-            if pid in programs:
-                program = programs[pid]
-                # print(f"old program {program['pids']}")
+            behavior = 'Normal'
+            expected_info = expected_program_info.get(program_name, no_info)
+            if expected_info == no_info:
+                behavior = 'Unusual'
+                rports = []
+                lports = []
+                listen = []
             else:
-                # print(f"new program >{pids}<")
-                program_name = program_names[0]
-                if program_name in program_info:
-                    # print(f"about to get description from {program_name}: {program_info[program_name]}")
-                    description = program_info[program_name]['description']
-                else:
-                    description = 'We have no information about this program'
-                program = {'pids': pids,
-                           'pid': pids,
-                           'names': program_names,
-                           'name': program_name,
-                           'uid': uid,
-                           'username': username,
-                           'listen': [],
-                           'established': [],
-                           'description': description
-                           }
+                established = expected_info.get('established', {})
+                # print(f"expected_info: {expected_info}")
+                listen = expected_info.get('listen', None)
+                rports = established.get('rport', None)
+                lports = established.get('lport', None)
 
-                # access via any pid
-                for pid in pids:
-                    programs[pid] = program
+            pl.append(
+                (behavior, f"Program: {program_name} ({entry['pid']}) UID: {entry['uid']}, User: {entry['username']}"))
+            pl.append((behavior, f"Descrip: {expected_info['description']}"))
 
-            (lhost, lport) = laddr.rsplit(':', 1)
-            (rhost, rport) = raddr.rsplit(':', 1)
+        ls = entry['local_service']
+        if ls != '':
+            ls = f"({ls})"
+        loc = f"{entry['local_port']}{ls}"
 
-            lprot = get_protocol_name(to_int(lport))
-            rprot = get_protocol_name(to_int(rport))
-            # print(f"lport:{lport}({lprot}) <---> rport:{rport}({rprot})")
-            #
-            if rhost in special_hosts:
-                hostname = special_hosts[rhost]
+        if entry['state'] == 'LISTEN':
+            if listen and entry['local_port'] in listen:
+                pl.append(('Normal', f"Listen :  {entry['local_address']}:{entry['local_port']}{ls}"))
             else:
-                try:
-                    hostname, _, _ = socket.gethostbyaddr(rhost)
-                    # print(f"The hostname for IP address {rhost} is {hostname}")
-                except (socket.herror, socket.gaierror):
-                    # print(f"Could not resolve the hostname for IP address {rhost}")
-                    hostname = 'unknown'
+                pl.append(('Unusual', f"Listen :  {entry['local_address']}{entry['local_port']}{ls} Unusual"))
 
-            conn = {
-                'protocol': protocol,
-                'lport': lport,
-                'lprot': lprot,
-                'rhost': rhost,
-                'rname': hostname,
-                'rport': rport,
-                'rprot': rprot
-            }
-            if state == 'LISTEN':
-                program['listen'].append([protocol, lport])
-                # print(f"{program_names[0]} listen ++>{conn}<++")
-            else:
-                # print(f"before len={len(program['established'])}")
-                program['established'].append(conn)
-                # print(f"after len={len(program['established'])}")
-                # print(f"{program['name']} added established ++>{conn}<++")
-                # for conn in program['established']:
-                #     print(f"{conn} ")
+        if entry['state'] == 'ESTABLISHED':
+            if lports:
+                if entry['local_port'] not in lports:
+                    behavior = 'Unusual'
+            if rports:
+                if entry['remote_port'] not in rports:
+                    behavior = 'Unusual'
 
-    except subprocess.CalledProcessError:
-        pass
+            remote_host = ''
+            try:
+                remote_host = socket.gethostbyaddr(entry['remote_address'])[0]
+            except (socket.herror, OSError):
+                pass
+            if remote_host != '':
+                remote_host = f"({remote_host})"
 
-    return programs
+            rs = entry['remote_service']
+            if rs != '':
+                rs = f"({rs})"
 
-def qualify_network_connections(network_info):
-    done = []
-    for (pid, pgm) in network_info.items():
-        if pid in done:
-            continue
-        done.extend(pgm['pids'])
-        pgm['Behavior'] = 'Normal'
-        name = pgm['name']
-        if name not in program_info:
-            pgm['Behavior'] = 'Unusual'
-            for c in pgm['established']:
-                c['Behavior'] = 'Unusual'
-            pgm['Behavior_Listen'] = 'Unusual'
-            continue
+            rem = f"{entry['remote_address']}{remote_host}:{entry['remote_port']}{rs}"
+            pl.append((behavior, f"Connect: {loc.ljust(35)} remote: {rem.ljust(70)}"))
 
-        pgm_behavior = program_info[name]
-        pgm['Behavior'] = 'Normal'
-        for k, behavior_items in pgm_behavior.items():
-            if k == 'username':
-                if pgm['username'] != behavior_items:
-                    pgm['Behavior'] = 'Unusual'
-                    continue
-
-            elif k == 'listen':
-                pgm['Behavior_Listen'] = 'Normal'
-                for p in pgm['listen']:
-                    if p not in behavior_items:
-                        pgm['Behavior_Listen'] = 'Unusual'
-                        continue
-
-            elif k == 'established':
-                for c in pgm['established']:
-                    c['Behavior'] = 'Normal'
-                    for p, pv in behavior_items.items():
-                        # print(f"About to check if {c[p]} in {pv} >>> {c[p] in pv} <<< {type(c[p])} == {type(pv[0])}")
-                        if c[p] not in pv:
-                            c['Behavior'] = 'Unusual'
-                            continue
+    if last_program != '':
+        output.append(pl)
+    return output
 
 
-RESET = Style.RESET_ALL
+def print_text(output):
+    for p in output:
+        print()
+        for b, l in p:
+            print(l, b)
 
 
-colors = {'Prog': {"Normal": Fore.WHITE, 'Unusual': Fore.CYAN},
-          'Desc': {"Normal": Fore.WHITE, 'Unusual': Fore.CYAN},
-          'List': {"Normal": Fore.GREEN, 'Unusual': Fore.CYAN},
-          'lpor': {"Normal": Fore.GREEN, 'Unusual': Fore.CYAN},
-          }
+R = style('reset')
+B = fore('steel_blue')
 
 
-BOX_COLOR = Fore.BLUE
+def c(k, n):
+    colors = {
+        "P_N": fore('white'),
+        "P_U": fore('dark_turquoise'),
+        "D_N": fore('white'),
+        "D_U": fore('dark_turquoise'),
+        "L_N": fore('green'),
+        "L_U": fore('dark_turquoise'),
+        "C_N": fore('green'),
+        "C_U": fore('dark_turquoise'),
+        "B_N": fore('green'),
+        "B_U": fore('dark_turquoise'),
+    }
+
+    color = f"{k}_{n}"
+    return colors[color]
+
+
 width = os.get_terminal_size().columns
 
 
-def fbl(text, behavior):
-    line_color = colors[text[:4]][behavior]
-    return f"{BOX_COLOR}│{RESET} {line_color}{text.ljust(width - 5)}{RESET} {BOX_COLOR}│{RESET}"
+def print_box(output):
+    for p in output:
+        print(f"{B}┌" + "─" * (width - 2) + f"┐{R}")
+        for b, l in p:
+            print(f"{B}│ {c(l[0], b[0])}{l.ljust(width - 4 - len(b) - 1)} {c('B', b[0])}{b} {B}│{R}")
+
+        print(f"{B}└" + "─" * (width - 2) + f"┘{R}")
 
 
-def print_network_info(network_info, output: str = 'text'):
-    print(f"netinfo.py --output={output} ")
-    if output == 'text':
-        for (pid, pgm) in network_info.items():
-            print("")
-            print(f"Program: {pgm['name']} ({pid})")
-            print(f"UID: {pgm['uid']}, User: {pgm['username']}")
-            ll = pgm['listen']
-            if len(ll) == 0:
-                print(f"Listening Ports: None")
-            else:
-                print(f"Listening Ports: ['{pgm['listen'][0][0]}', '{pgm['listen'][0][1]}']")
+__doc__ = """ 
+ninfo.py  
+Usage:
+    ninfo.py (text|box)
 
-            for conn in pgm['established']:
-                host = f"{conn['rhost']}({conn['rname']})"
-                print(f"lport:{conn['lport'].ljust(15)} host:{host.ljust(45)} port:{conn['rport'].ljust(15)}  ")
-            print()
-    elif output == 'box':
-        # Get terminal width
-        is_open = False
+Options: 
+    -h, --help              Show this help message. 
+"""
 
-        done = []
-        for (pid, pgm) in network_info.items():
-            if pid in done:
-                continue
 
-            done.extend(pgm['pids'])
-            if is_open:
-                print(f"{Fore.BLUE}└" + "─" * (width - 3) + f"┘{RESET}")
-            is_open = True
-            print(f"{Fore.BLUE}┌" + "─" * (width - 3) + f"┐{RESET}")
-            print(fbl(f"Program: {pgm['name']} ({pid}) UID: {pgm['uid']}, User: {pgm['username']} {pgm['Behavior']}", pgm['Behavior']))
-            print(fbl(f"Description: {pgm['description']}", pgm['Behavior']))
-            ll = pgm['listen']
-            if len(ll) == 0:
-                print(fbl(f"Listening Ports: None {pgm['Behavior_Listen']}", pgm['Behavior_Listen']))
-            else:
-                print(fbl(f"Listening Ports: ['{pgm['listen'][0][0]}', '{pgm['listen'][0][1]}'] {pgm['Behavior_Listen']}", pgm['Behavior_Listen']))
+def main():
+    arguments = docopt(__doc__, version='Example 1')
 
-            for conn in pgm['established']:
-                host = f"{conn['rhost']}({conn['rname']})"
-                # print(conn)
+    # Load Program descriptions
+    with open("program_info.json", 'r') as f:
+        expected_program_info = json.load(f)
 
-                lp = f"lport:{conn['lport']}"
-                if conn['lprot'] != 'Unknown':
-                    lp += f"({conn['lprot']})"
-                lp = f"{lp.ljust(35)}"
+    # fetch network information
+    network_data = fetch_network_info()
+    # print(tabulate(network_data, headers="keys", tablefmt="fancy_grid"))
 
-                rp = f"port:{conn['rport']}"
-                if conn['rprot'] != 'Unknown':
-                    rp = f"{rp}({conn['rprot']})"
-                rp = f"{rp.ljust(35)}"
+    # compare expected behavior to current network
+    output = compare_output(expected_program_info, network_data)
 
-                cline = f"{lp} host:{host.ljust(60)} {rp} {conn['Behavior']}"
+    if arguments['text']:
+        print_text(output)
 
-                print(fbl(cline, conn['Behavior']))
-
-        print(f"{Fore.BLUE}└" + "─" * (width - 3) + f"┘{RESET}")
+    if arguments['box']:
+        print_box(output)
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Display Network Information")
-    parser.add_argument("--output", type=str, help="Type of output to generate")
-    args = parser.parse_args()
-    output = args.output
-    network_info = get_network_info()
-    qualify_network_connections(network_info)
-    print_network_info(network_info, output=output)
+    main()
