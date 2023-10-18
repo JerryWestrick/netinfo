@@ -16,7 +16,8 @@ The idea is to watch you network in real time and match the current network patt
 2. Create a realtime version that constantly watches for unknown network processing.
 3. Investigate what similar static program definitions exists.
 4. Add Check for known illegal sites: https://iplists.firehol.org/
-5. In the following output section for chrome, find out what each of those server are and what data is transferred. 
+5. use the official site for servcice translations: https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xhtml
+6. In the following output section for chrome, find out what each of those server are and what data is transferred. 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ Program: chrome (31910) UID: 1000, User: jerry                                                                                      Normal │
