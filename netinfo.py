@@ -157,13 +157,30 @@ def c(k, n):
 
 
 width = os.get_terminal_size().columns
+max_text_width = width - 12     # 2 (Bar and space), 8 (len('Unusual') and space) 2 (space and Bar)
 
+
+def print_box_long_description(line, b):
+    first_char = line[0]
+    words = line.split()
+    lp = words.pop(0)
+    while len(words):
+        if len(lp) + len(words[0]) < max_text_width:
+            lp = f"{lp} {words.pop(0)}"
+        else:
+            print(f"{B}│ {c(first_char, b[0])}{lp.ljust(max_text_width)} {c('B', b[0])}{b.rjust(7)} {B}│{R}")
+            lp = '        '
+    if len(lp) > 0:
+        print(f"{B}│ {c(first_char, b[0])}{lp.ljust(max_text_width)} {c('B', b[0])}{b.rjust(7)} {B}│{R}")
 
 def print_box(output):
     for p in output:
         print(f"{B}┌" + "─" * (width - 2) + f"┐{R}")
         for b, l in p:
-            print(f"{B}│ {c(l[0], b[0])}{l.ljust(width - 4 - len(b) - 1)} {c('B', b[0])}{b} {B}│{R}")
+            if len(l) > max_text_width:
+                print_box_long_description(l, b)
+            else:
+                print(f"{B}│ {c(l[0], b[0])}{l.ljust(max_text_width)} {c('B', b[0])}{b.rjust(7)} {B}│{R}")
 
         print(f"{B}└" + "─" * (width - 2) + f"┘{R}")
 

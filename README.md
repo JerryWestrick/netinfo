@@ -13,12 +13,11 @@ The idea is to watch you network in real time and match the current network patt
 ## Next Steps
 1. Increase the number of programs in program_info.json.  
     **Note:** that this is easily done by setting up a chatGPT session to which you copy the undefined program section, and ask chatGPT to update the program_info.json
-2. In the first program in the example the description takes 2 lines.  Correct code to use 2 lines
-3. Create a realtime version that constantly watches for unknown network processing.
-4. Investigate what similar static program definitions exists.
-5. Add Check for known illegal sites: https://iplists.firehol.org/
-6. use the official site for servcice translations: https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xhtml
-7. In the following output section for chrome, find out what each of those server are and what data is transferred. 
+2. Create a realtime version that constantly watches for unknown network processing.
+3. Investigate what similar static program definitions exists.
+4. Add Check for known illegal sites: https://iplists.firehol.org/
+5. use the official site for servcice translations: https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xhtml
+6. In the following output section for chrome, find out what each of those server are and what data is transferred. 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ Program: chrome (31910) UID: 1000, User: jerry                                                                                      Normal │
@@ -41,7 +40,9 @@ The idea is to watch you network in real time and match the current network patt
 ```
 
 ## Done
-1. Implement version using osquery:
+1. If description does not fit in one line it is broken into 2 lines.
+
+2. Implement version using osquery:
    - Allow for os independence (MACOS, WINDOWS, LINUX)
    - Allow for a much better structured interface to os than executing unix mini commands and parsing the output.
 2. rewrite color handling.  now uses colored.
