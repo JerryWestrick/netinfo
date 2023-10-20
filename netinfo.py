@@ -1,4 +1,5 @@
 import json
+import curses
 import os
 import subprocess
 from docopt import docopt
@@ -185,10 +186,99 @@ def print_box(output):
         print(f"{B}└" + "─" * (width - 2) + f"┘{R}")
 
 
+
+def cp(line, behavior):
+    cpd = {'P': 1, 'D': 2, 'L': 3, 'C': 4}
+    rv = cpd[line]
+    if behavior == 'U':
+        rv += 5
+    return rv
+
+
+# Function to draw a box based on the provided content
+def draw_box(win, content, max_x, selected):
+
+    bcp = 5
+    if selected:
+        bcp = 10
+
+    win.addstr("┌" + "─" * (max_x - 2) + "┐\n", curses.color_pair(bcp))
+    for behavior, text in content:
+        win.addstr("│ ", curses.color_pair(bcp))
+        win.addstr(f"{text.ljust(max_x - 12)} {behavior.rjust(7)}", curses.color_pair(cp(text[0], behavior[0])))
+        win.addstr(" │\n", curses.color_pair(bcp))
+    win.addstr(f"└" + "─" * (max_x - 2) + f"┘\n", curses.color_pair(bcp))
+    return len(content) + 2
+
+
+ChosenProgram = None
+
+
+def display_programs(stdscr, output):
+    # Initialize colors and set up the screen
+    curses.start_color()
+    curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLACK)     # Program Normal
+    curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_BLACK)     # Description Normal
+    curses.init_pair(3, curses.COLOR_GREEN, curses.COLOR_BLACK)     # Listening Normal
+    curses.init_pair(4, curses.COLOR_GREEN, curses.COLOR_BLACK)     # Established Normal
+    curses.init_pair(5, curses.COLOR_BLUE, curses.COLOR_BLACK)      # Box Default
+    curses.init_pair(6, curses.COLOR_YELLOW, curses.COLOR_BLACK)    # Program Unusual
+    curses.init_pair(7, curses.COLOR_YELLOW, curses.COLOR_BLACK)    # Description Unusual
+    curses.init_pair(8, curses.COLOR_BLUE, curses.COLOR_BLACK)      # Listening Unusual
+    curses.init_pair(9, curses.COLOR_BLUE, curses.COLOR_BLACK)      # Established Unusual
+    curses.init_pair(10, curses.COLOR_WHITE, curses.COLOR_BLACK)    # Box Selected
+    curses.curs_set(0)  # Hide cursor
+    stdscr.clear()
+
+    # Create window for the boxes
+    max_y, max_x = stdscr.getmaxyx()
+    box_win = curses.newwin(max_y - 2, max_x - 3, 1, 1)
+    box_win.scrollok(True)
+
+    selected = 0
+    top_of_page = 0
+    bottom_of_page = 0
+
+    def redraw_boxes(top, sel):
+        box_win.clear()
+
+        # Draw as many boxes as fit in box_window
+        bop = top
+        free_lines = max_y
+        for pgm in output[top:]:
+            if free_lines > len(pgm):
+                free_lines = free_lines - draw_box(box_win, pgm, max_x - 4, sel == bop)
+                bop += 1
+            else:
+                draw_box(box_win, pgm[:free_lines], max_x - 4, False)
+                break
+        box_win.refresh()
+        return bop
+
+    while True:
+        bottom_of_page = redraw_boxes(top_of_page, selected)
+
+        key = stdscr.getch()
+
+        if key == curses.KEY_UP and selected > 0:
+            selected -= 1
+            if selected < top_of_page:
+                top_of_page = selected
+        elif key == curses.KEY_DOWN and selected < len(output):
+            selected += 1
+            if selected > bottom_of_page:
+                top_of_page = top_of_page + 1
+
+        elif key == curses.KEY_ENTER or key in [10, 13]:  # Enter key
+            # Future implementation: Display detailed info about the selected program or execute "explain" routine
+            return output[selected]
+            break
+
+
 __doc__ = """ 
 ninfo.py  
 Usage:
-    ninfo.py (text|box)
+    ninfo.py (text|box|curses)
 
 Options: 
     -h, --help              Show this help message. 
@@ -208,6 +298,12 @@ def main():
 
     # compare expected behavior to current network
     output = compare_output(expected_program_info, network_data)
+
+    if arguments['curses']:
+        # Run the interactive session
+        pgm = curses.wrapper(display_programs,  output)
+
+        print_box([pgm])
 
     if arguments['text']:
         print_text(output)
